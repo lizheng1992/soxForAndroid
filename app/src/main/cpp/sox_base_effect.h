@@ -44,8 +44,6 @@ public:
     /** 销毁 **/
     virtual void destroy() = 0;
 
-    /** init chain **/
-    virtual int initChain(SOXReverbFilterParam *reverbFilterParam) = 0;
 
     /** delete chain **/
     virtual void destroyChain() = 0;

@@ -1,22 +1,12 @@
 package com.xueersiwx.lib.sox;
 
-import android.inputmethodservice.Keyboard;
-import android.renderscript.Script;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.method.KeyListener;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.KeyEvent;
-import android.view.SoundEffectConstants;
 import android.view.View;
-import android.view.inputmethod.ExtractedText;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.TextView;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -27,15 +17,34 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 public class MainActivity extends AppCompatActivity {
+    private EditText edt;
+    private EditText edt1;
+    private EditText edt2;
 
-    // Used to load the 'native-lib' library on application startup.
-    SoxUtils soxUtils;
 
+    boolean isSwitch=false;
+
+    private float mParams[][];
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Button button = findViewById(R.id.sample_text);
+        edt=findViewById(R.id.edt_value);
+        edt1=findViewById(R.id.edt_value1);
+        edt2=findViewById(R.id.edt_value2);
+
+        findViewById(R.id.btn_switch_jhq).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isSwitch=true;
+                mParams = new float[][]{
+                        {200, 2.0f, Float.valueOf(edt.getText().toString()).floatValue()},
+                        {300, 0.2f, Float.valueOf(edt1.getText().toString()).floatValue()},
+                        {400, 0.1f, -Float.valueOf(edt2.getText().toString()).floatValue()}
+                };
+            }
+        });
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -45,27 +54,32 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
+        findViewById(R.id.btn_jhq).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                float params[][] = new float[][]{
+                        {200, 2.0f, 3f},
+                        {300, 0.2f, 10},
+                        {400, 0.1f, -6}
+                };
+                SoxUtils._initEqualizerEffect(44100 * 2, 44100, 2,params);
+            }
+        });
+
+
     }
 
 
     public void init(View view) {
-        if (soxUtils == null) {
-            soxUtils = new SoxUtils();
- /*           int reverberance, int damping, int roomScale,
-            int preDelay, int wetGain, int stereoDepth, int dryWetMix,
-            int echoDelay, int echoPredecay, int echoPeriod, int echoDecayRatio,
-            int echoPhaseDiff, int echoNum
-
-            {reverbrance, hfDamping, roomScale, stereoDepth, preDelay, wetGain};*/
-            soxUtils.initSoxAudio(44100 * 2, 44100, 2,
-                    30,
-                    30,
-                    80,
-                    30,
-                    30,
-                    0);
-            // soxUtils.init(44100*2);
-        }
+        SoxUtils.initReverbEffect(44100 * 2, 44100, 2,
+                80,
+                30,
+                100,
+                30,
+                30,
+                8);
     }
 
     public void process(View view) {
@@ -74,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 try {
                     InputStream is = new FileInputStream("/sdcard/mydream.pcm");
-                    OutputStream os = new FileOutputStream("/sdcard/mydreampppp.pcm");
+                    OutputStream os = new FileOutputStream("/sdcard/mydreamequalizer.pcm");
                     byte[] b = new byte[2048];
 
                     int i = 0;
@@ -83,10 +97,15 @@ public class MainActivity extends AppCompatActivity {
                     //循环读取每个数据
                     while ((len = is.read(b)) != -1) {//把读取的数据放到i中
                         short[] shorts = bytesToShort(b);
-                        short[] process = soxUtils.process(shorts, len/2);
+                        if(isSwitch){
+                            isSwitch=false;
+                            SoxUtils.destoryEqualChain();
+                            SoxUtils._initEqualizerChain(mParams);
+                        }
+                        short[] process = SoxUtils.doEqualProcess(shorts, len / 2);
                         byte[] bytes = shortToBytes(process);
                         os.write(bytes, 0, len);
-                       // Log.e("sox", "写入文件: " + len);
+                        // Log.e("sox", "写入文件: " + len);
                     }
                     Log.e("sox", "文件写入完成: ");
                     is.close();

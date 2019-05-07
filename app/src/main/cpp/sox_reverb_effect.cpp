@@ -29,12 +29,6 @@ void SoxReverbEffect::destroy() {
     }
 }
 
-int SoxReverbEffect::initChain(SOXReverbFilterParam *reverbFilterParam) {
-    SoxBaseEffect::initSignal();
-    SoxReverbEffect::initReverbOutputSignal(inputChannels);
-    this->initReverbChain(reverbFilterParam);
-    return 1;
-}
 
 void SoxReverbEffect::initReverbOutputSignal(int channels) {
     reverb_out_signal.precision = 16;
@@ -60,6 +54,9 @@ void SoxReverbEffect::destroyChain() {
 }
 
 void SoxReverbEffect::initReverbChain(SOXReverbFilterParam *reverbFilterParam) {
+    SoxBaseEffect::initSignal();
+    SoxReverbEffect::initReverbOutputSignal(inputChannels);
+
     //-w表示只要混响，不要干声
 //	LOGI("signal channels is %d reverb_output_signles channels is %d",  signal.channels, reverb_out_signal.channels);
     reverbChain = sox_create_effects_chain(&encoding, &encoding);

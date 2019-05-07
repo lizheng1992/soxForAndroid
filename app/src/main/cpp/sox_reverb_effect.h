@@ -5,6 +5,10 @@
 #include "sox_filter_reverb_param.h"
 #include "Log.h"
 
+/**
+ * 混响
+ */
+
 class SoxReverbEffect: public SoxBaseEffect {
 public:
 	static short* preProcessSamples;
@@ -14,7 +18,7 @@ public:
 protected:
 	sox_effects_chain_t * reverbChain;
 	sox_effects_chain_t * equalizerChain;
-	void initReverbChain(SOXReverbFilterParam* reverbFilterParam);
+
 
 	sox_signalinfo_t reverb_out_signal;
 	void initReverbOutputSignal(int channels);
@@ -25,12 +29,12 @@ public:
 	virtual int init(int bufferSize);
 	/** 销毁 **/
 	virtual void destroy();
-	/** init chain **/
-	virtual int initChain(SOXReverbFilterParam* reverbFilterParam);
 	/** delete chain **/
 	virtual void destroyChain();
 	/** 由边录边和调用的方法 **/
 	virtual int process(short* audioSample, int size);
+
+	void initReverbChain(SOXReverbFilterParam* reverbFilterParam);
 };
 
 

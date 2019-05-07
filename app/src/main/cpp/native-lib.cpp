@@ -5,15 +5,16 @@
 #include "stdlib.h"
 #include "sox_reverb_effect.h"
 #include "sox_filter_reverb_param.h"
-#include "Sox_effect.h"
-
+#include "sox_equalizer_effect.h"
+#include "sox_filter_equalizer_param.h"
 extern "C" {
 #include "sox.h"
 }
 
 SoxReverbEffect *soxReverbEffect = NULL;
+
+SoxEqualizerEffect *soxEqualizerEffect=NULL;
 long long fileLength;
-Sox_effect *effect = NULL;
 
 int callBack(sox_bool all_done,
              void *client_data) {
@@ -142,7 +143,7 @@ Java_com_xueersiwx_lib_sox_SoxUtils_initSoxAudio(JNIEnv *env, jobject instance, 
     SOXReverbFilterParam *reverbFilterParam = new SOXReverbFilterParam(reverberance, damping,
                                                                        roomScale, stereoDepth,
                                                                        preDelay, wetGain);
-    soxReverbEffect->initChain(reverbFilterParam);
+    soxReverbEffect->initReverbChain(reverbFilterParam);
 
     return true;
 
@@ -150,17 +151,17 @@ Java_com_xueersiwx_lib_sox_SoxUtils_initSoxAudio(JNIEnv *env, jobject instance, 
 JNIEXPORT jshortArray JNICALL
 Java_com_xueersiwx_lib_sox_SoxUtils_process(JNIEnv *env, jobject instance, jshortArray audioSample_,
                                             jint size) {
-    int len=size;
+    int len = size;
     jshort *audioSample = env->GetShortArrayElements(audioSample_, NULL);
     short *temp = static_cast<short *>(malloc(sizeof(short) * len));
     if (soxReverbEffect != NULL) {
         soxReverbEffect->process(audioSample, size);
-        LOGE(" jni size %d",len)
+        LOGE(" jni size %d", len)
         if (size > 0) {
-            memcpy(temp, audioSample, len*2);
+            memcpy(temp, audioSample, len * sizeof(short));
             jshortArray data = env->NewShortArray(len);
             env->SetShortArrayRegion(data, 0, len, temp);
-          free(temp);
+            free(temp);
             env->ReleaseShortArrayElements(audioSample_, audioSample, 0);
             return data;
         }
@@ -180,33 +181,123 @@ Java_com_xueersiwx_lib_sox_SoxUtils_destory(JNIEnv *env, jobject instance) {
     }
 
 }extern "C"
-JNIEXPORT void JNICALL
-Java_com_xueersiwx_lib_sox_SoxUtils_init(JNIEnv *env, jobject instance, jint bufferSize) {
+JNIEXPORT jboolean JNICALL
+Java_com_xueersiwx_lib_sox_SoxUtils__1initEqualizerEffect(JNIEnv *env, jclass type, jint bufferSize, jdouble sampleRate,
+                                                          jint channels, jobjectArray params) {
 
-    if (effect == NULL) {
-        effect = new Sox_effect();
-        effect->init(bufferSize);
+        int i,j;
+        int row = env->GetArrayLength(params);
+
+        jfloatArray myArray = static_cast<jfloatArray>(env->GetObjectArrayElement(params, 0));
+        int col = env->GetArrayLength(myArray); //获得列数
+        jfloat jniData[row][col];
+
+
+        for (i = 0; i < row; i++){
+
+            myArray = static_cast<jfloatArray>(env->GetObjectArrayElement(params, i));
+
+            jfloat *coldata = env->GetFloatArrayElements(myArray, 0 );
+
+            for (j=0; j<col; j++) {
+                jniData [i] [j] = coldata[j]; //取出JAVA类中arrayData的数据,并赋值给JNI中的数组
+                LOGE("%f",jniData[i][j]);
+            }
+
+            env->ReleaseFloatArrayElements(myArray, coldata, 0 );
+
+        }
+
+    soxEqualizerEffect=new SoxEqualizerEffect(sampleRate,channels);
+    soxEqualizerEffect->init(bufferSize);
+    std::list<SOXEqualizerFilterParam*> * equalizerFilterParams = new std::list<SOXEqualizerFilterParam*>();
+
+    for (int i = 0; i <row ; ++i) {
+        SOXEqualizerFilterParam* equalizerFilterParam = new SOXEqualizerFilterParam(jniData[i][0], jniData[i][1], jniData[i][2]);
+        equalizerFilterParams->push_back(equalizerFilterParam);
     }
+    soxEqualizerEffect->initEqualizerChain(equalizerFilterParams);
 
+
+    return true;
 }extern "C"
 JNIEXPORT jshortArray JNICALL
-Java_com_xueersiwx_lib_sox_SoxUtils_process_1t(JNIEnv *env, jobject instance,
-                                               jshortArray audioSample_, jint size) {
+Java_com_xueersiwx_lib_sox_SoxUtils__1equalProcess(JNIEnv *env, jclass type, jshortArray audioSample_, jint size) {
+    int len = size;
     jshort *audioSample = env->GetShortArrayElements(audioSample_, NULL);
-    LOGE("aaaaa");
-    short *temp = static_cast<short *>(malloc(sizeof(short) * size));
-    if (effect != NULL) {
-        //int refsize = effect->process(audioSample, size);
-        memcpy(temp, audioSample, size);
-        jshortArray jshortArray = env->NewShortArray(size);
-        env->SetShortArrayRegion(jshortArray, 0, size, temp);
-        free(temp);
-        env->ReleaseShortArrayElements(audioSample_, audioSample, 0);
-        return jshortArray;
-
+    short *temp = static_cast<short *>(malloc(sizeof(short) * len));
+    if (soxEqualizerEffect != NULL) {
+        soxEqualizerEffect->process(audioSample, size);
+        LOGE(" jni size %d", len)
+        if (size > 0) {
+            memcpy(temp, audioSample, len * sizeof(short));
+            jshortArray data = env->NewShortArray(len);
+            env->SetShortArrayRegion(data, 0, len, temp);
+            free(temp);
+            env->ReleaseShortArrayElements(audioSample_, audioSample, 0);
+            return data;
+        }
     }
     free(temp);
-
     env->ReleaseShortArrayElements(audioSample_, audioSample, 0);
+    return NULL;
+}extern "C"
+JNIEXPORT void JNICALL
+Java_com_xueersiwx_lib_sox_SoxUtils_destoryEqual(JNIEnv *env, jobject instance) {
+
+    if (soxEqualizerEffect != NULL) {
+        soxEqualizerEffect->destroyChain();
+        soxEqualizerEffect->destroy();
+        delete (soxEqualizerEffect);
+        soxEqualizerEffect = NULL;
+    }
+}extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_xueersiwx_lib_sox_SoxUtils__1initEqualizerChain(JNIEnv *env, jclass type, jobjectArray params) {
+
+    int i,j;
+    int row = env->GetArrayLength(params);
+
+    jfloatArray myArray = static_cast<jfloatArray>(env->GetObjectArrayElement(params, 0));
+    int col = env->GetArrayLength(myArray); //获得列数
+    jfloat jniData[row][col];
+
+
+    for (i = 0; i < row; i++){
+
+        myArray = static_cast<jfloatArray>(env->GetObjectArrayElement(params, i));
+
+        jfloat *coldata = env->GetFloatArrayElements(myArray, 0 );
+
+        for (j=0; j<col; j++) {
+            jniData [i] [j] = coldata[j]; //取出JAVA类中arrayData的数据,并赋值给JNI中的数组
+            LOGE("%f",jniData[i][j]);
+        }
+
+        env->ReleaseFloatArrayElements(myArray, coldata, 0 );
+
+    }
+
+
+   if(soxEqualizerEffect!=NULL){
+        std::list<SOXEqualizerFilterParam*> * equalizerFilterParams = new std::list<SOXEqualizerFilterParam*>();
+
+        for (int i = 0; i <row ; ++i) {
+            SOXEqualizerFilterParam* equalizerFilterParam = new SOXEqualizerFilterParam(jniData[i][0], jniData[i][1], jniData[i][2]);
+            equalizerFilterParams->push_back(equalizerFilterParam);
+        }
+        soxEqualizerEffect->initEqualizerChain(equalizerFilterParams);
+
+
+    }
+    return true;
+
+}extern "C"
+JNIEXPORT void JNICALL
+Java_com_xueersiwx_lib_sox_SoxUtils_destoryEqualChain(JNIEnv *env, jclass type) {
+
+    if(soxEqualizerEffect!=NULL){
+        soxEqualizerEffect->destroyChain();
+    }
 
 }
